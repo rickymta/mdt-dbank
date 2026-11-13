@@ -1,0 +1,34 @@
+# Standalone deployment file, not an override of docker-compose.yml.
+# Run: docker compose -f docker-compose.antblog.yml up -d --build
+services:
+  mdt-dbank:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DB_PATH: /app/data/bank.sqlite
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID:-}"
+      SESSION_SECRET: "${SESSION_SECRET:?Set SESSION_SECRET in .env}"
+      COOKIE_SECURE: "true"
+      TRUST_PROXY: "1"
+    volumes:
+      - bank-data:/app/data
+    networks:
+      - antblog-network
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+networks:
+  antblog-network:
+    external: true
+    name: "${ANTBLOG_NETWORK:-tech-knowledge-hub_tkh}"
+
+volumes:
+  bank-data:

@@ -95,3 +95,13 @@ docker compose up -d
 
 Không dùng `docker compose down -v` nếu cần giữ dữ liệu, vì `-v` xóa volume. Để sao lưu, dừng container trước, dùng `docker compose cp mdt-dbank:/app/data ./backup-data`, rồi `docker compose start`.
 
+
+## Subdomain dbank.antblog.xyz trên cùng server với antblog
+
+Dùng `docker-compose.antblog.yml` thay cho Compose local: container ngân hàng nối vào mạng hiện có của antblog, không publish cổng và bật sẵn Secure cookie cùng hỗ trợ một reverse proxy. File `.env.example` có biến `ANTBLOG_NETWORK` để đặt tên mạng thực tế.
+
+```bash
+docker compose -f docker-compose.antblog.yml up -d --build
+```
+
+Hướng dẫn DNS, mở rộng SSL hiện có, template Nginx cần chép sang antblog và kiểm tra: [deploy/antblog/README.md](deploy/antblog/README.md). Các file này chuẩn bị cấu hình; không tự thay đổi server, DNS hay repo antblog.

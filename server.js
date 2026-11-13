@@ -6,6 +6,8 @@ import {randomInt,randomUUID,createHash,randomBytes,timingSafeEqual} from 'node:
 import {db,settings,limitValue,transfer,dayKey} from './db.js';
 import {parseQR} from './public/qr.js';
 const app=express();const port=Number(process.env.PORT||3000);
+// Enable only behind one trusted reverse proxy that overwrites forwarded headers.
+if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
 app.use(helmet({contentSecurityPolicy:{directives:{'script-src':["'self'","'unsafe-inline'"],'img-src':["'self'",'data:','blob:'],'media-src':["'self'",'blob:']}}}));
 app.use(express.json({limit:'16kb'}));
 app.use(session({secret:process.env.SESSION_SECRET||randomBytes(32).toString('hex'),resave:false,saveUninitialized:false,cookie:{httpOnly:true,sameSite:'strict',secure:process.env.COOKIE_SECURE==='true',maxAge:8*60*60*1000}}));
