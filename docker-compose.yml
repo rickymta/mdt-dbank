@@ -1,0 +1,26 @@
+services:
+  mdt-dbank:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DB_PATH: /app/data/bank.sqlite
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID:-}"
+      SESSION_SECRET: "${SESSION_SECRET:-}"
+      COOKIE_SECURE: "${COOKIE_SECURE:-false}"
+    volumes:
+      - bank-data:/app/data
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  bank-data:
