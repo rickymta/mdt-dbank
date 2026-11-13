@@ -3,7 +3,8 @@ import session from 'express-session';
 import helmet from 'helmet';
 import {rateLimit} from 'express-rate-limit';
 import {randomInt,randomUUID,createHash,randomBytes,timingSafeEqual} from 'node:crypto';
-import {db,settings,limitValue,transfer,dayKey} from './db.js';
+import {db,settings,limitValue,transfer,dayKey,integrationSettings} from './db.js';
+import {integrationView,saveIntegration,generatePartnerKey,retryCallback,createCallbackWorker} from './integration.js';
 import {parseQR} from './public/qr.js';
 const app=express();const port=Number(process.env.PORT||3000);
 // Enable only behind one trusted reverse proxy that overwrites forwarded headers.
@@ -35,20 +36,28 @@ app.post('/api/verify',loginLimit,(req,res)=>{
 });
 app.post('/api/logout',auth,(req,res)=>req.session.destroy(()=>{res.clearCookie('connect.sid');res.json({ok:true});}));
 app.get('/api/settings',auth,(req,res)=>{const c=settings();res.json({chatId:c.chat_id||process.env.TELEGRAM_CHAT_ID||'',dailyLimit:c.daily_limit,callbackUrl:c.callback_url,hasToken:!!(c.token||process.env.TELEGRAM_BOT_TOKEN)});});
-app.put('/api/settings',auth,(req,res)=>{try{const {token,chatId,callbackUrl}=req.body;const limit=limitValue(req.body.dailyLimit);if(typeof chatId!=='string'||!chatId.trim()||chatId.length>100||typeof callbackUrl!=='string'||callbackUrl.length>2048||typeof token!=='string'||token.length>200)throw new Error('Cấu hình không hợp lệ.');if(token&&!/^\d+:[\w-]+$/.test(token))throw new Error('Token Telegram không hợp lệ.');if(callbackUrl&&!['http:','https:'].includes(new URL(callbackUrl).protocol))throw new Error('Callback cần là URL HTTP hoặc HTTPS.');db.prepare('UPDATE settings SET token=?,chat_id=?,daily_limit=?,callback_url=? WHERE id=1').run(token||settings().token,chatId.trim(),limit,callbackUrl);res.json({ok:true,dailyLimit:limit});}catch(e){res.status(400).json({error:e.message});}});
+app.put('/api/settings',auth,(req,res)=>{try{const {token,chatId,callbackUrl=settings().callback_url}=req.body;const limit=limitValue(req.body.dailyLimit);if(typeof chatId!=='string'||!chatId.trim()||chatId.length>100||typeof callbackUrl!=='string'||callbackUrl.length>2048||typeof token!=='string'||token.length>200)throw new Error('Cấu hình không hợp lệ.');if(token&&!/^\d+:[\w-]+$/.test(token))throw new Error('Token Telegram không hợp lệ.');if(callbackUrl&&!['http:','https:'].includes(new URL(callbackUrl).protocol))throw new Error('Callback cần là URL HTTP hoặc HTTPS.');if(integrationSettings().enabled && callbackUrl!==settings().callback_url)throw new Error('Đổi URL trong phần Tích hợp MedDental khi callback đang bật.');db.prepare('UPDATE settings SET token=?,chat_id=?,daily_limit=?,callback_url=? WHERE id=1').run(token||settings().token,chatId.trim(),limit,callbackUrl);res.json({ok:true,dailyLimit:limit});}catch(e){res.status(400).json({error:e.message});}});
 app.get('/api/transactions',auth,(req,res)=>{
  const page=Math.max(1,parseInt(req.query.page)||1),size=10;const conditions=[],args=[];
  if(req.query.search){conditions.push("content LIKE ? ESCAPE '\\'");args.push('%'+String(req.query.search).replace(/[\\%_]/g,'\\$&')+'%');}
  for(const [key,op] of [['from','>='],['to','<=']])if(req.query[key]){if(!/^\d{4}-\d{2}-\d{2}$/.test(req.query[key]))return res.status(400).json({error:'Ngày không hợp lệ.'});conditions.push(`day ${op} ?`);args.push(req.query[key]);}
  const where=conditions.length?' WHERE '+conditions.join(' AND '):'';
  const total=db.prepare('SELECT COUNT(*) AS n FROM transactions'+where).get(...args).n;
- const rows=db.prepare('SELECT * FROM transactions'+where+' ORDER BY created_at DESC LIMIT ? OFFSET ?').all(...args,size,(page-1)*size);
+ const rows=db.prepare('SELECT transactions.*,callback_jobs.state AS callback_state,callback_jobs.attempts AS callback_attempts,callback_jobs.last_error AS callback_error,callback_jobs.reference_id AS callback_reference,callback_jobs.next_at AS callback_next_at,callback_jobs.result_status AS callback_result FROM transactions LEFT JOIN callback_jobs ON callback_jobs.transaction_id=transactions.id'+where+' ORDER BY transactions.created_at DESC LIMIT ? OFFSET ?').all(...args,size,(page-1)*size);
  const today=db.prepare('SELECT COUNT(*) AS count,COALESCE(SUM(amount),0) AS amount FROM transactions WHERE day=?').get(dayKey());
  res.json({rows,total,page,pages:Math.max(1,Math.ceil(total/size)),today,dailyLimit:settings().daily_limit});
 });
 app.post('/api/qr',auth,(req,res)=>{try{const parsed=parseQR(req.body.raw);const id=randomUUID();req.session.pending={id,parsed,expires:Date.now()+600000};res.json({...parsed,id});}catch(e){res.status(400).json({error:e.message});}});
 app.post('/api/transfers',auth,(req,res)=>{try{const p=req.session.pending;if(!p||p.id!==req.body.id||p.expires<Date.now())throw new Error('Thông tin xác nhận đã hết hạn. Hãy quét lại QR.');res.json(transfer(p.parsed,p.id));}catch(e){res.status(400).json({error:e.message});}});
+app.get('/api/integration',auth,(req,res)=>res.json(integrationView()));
+app.put('/api/integration',auth,(req,res)=>{try{res.json(saveIntegration(req.body));}catch(error){res.status(400).json({error:error.message});}});
+app.post('/api/integration/keypair',auth,(req,res)=>{try{res.json(generatePartnerKey());}catch(error){res.status(400).json({error:error.message});}});
+app.post('/api/transactions/:id/callback',auth,(req,res)=>{try{retryCallback(req.params.id);res.status(202).json({ok:true});}catch(error){res.status(400).json({error:error.message});}});
 app.use('/vendor',express.static('node_modules/html5-qrcode',{index:false}));app.use(express.static('public'));
 app.use((err,req,res,next)=>{res.status(err.status===400?400:500).json({error:err.status===400?'Dữ liệu yêu cầu không hợp lệ.':'Có lỗi xử lý yêu cầu.'});});
 export const server=app.listen(port,()=>console.log(`MEDDENTAL: http://localhost:${port}`));
 
+
+export const callbackWorker=createCallbackWorker();
+callbackWorker.start();
+server.on('close',()=>callbackWorker.stop());

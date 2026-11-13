@@ -8,6 +8,8 @@ server {
 
 server {
     listen 443 ssl;
+    # Match antblog virtual hosts when browsers reuse an HTTP/2 TLS connection.
+    http2 on;
     server_name dbank.antblog.xyz;
 
     include /etc/nginx/tkh-ssl.conf;

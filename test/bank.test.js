@@ -12,11 +12,18 @@ function qr(amount=250000,content='MEDDENTAL TEST'){let raw=field('00','01')+fie
 test('VietQR, OTP, authenticated transfer, limits, filters and logout',async()=>{try{
  assert.equal(parseQR(qr()).amount,250000);assert.throws(()=>parseQR(qr().slice(0,-4)+'0000'));assert.throws(()=>parseQR(qr(0)));assert.equal(limitValue(-10),0);assert.equal(dayKey(new Date('2026-11-13T18:00:00Z')),'2026-11-14');
  assert.equal((await request('/api/transactions')).status,401);
+ assert.equal((await request('/api/integration')).status,401);
+ assert.equal((await request('/api/integration/keypair',{})).status,401);
+ assert.equal((await request('/api/transactions/unknown/callback',{})).status,401);
  assert.equal((await request('/api/login',{username:'other'})).status,400);
  assert.equal((await request('/api/login',{username:'meddental'})).status,200);
  assert.equal((await request('/api/verify',{otp:'invalid'})).status,400);
  assert.equal((await request('/api/verify',{otp})).status,200);
  assert.equal((await request('/api/verify',{otp})).status,400);
+ assert.equal((await request('/api/integration')).data.enabled,false);
+ assert.equal((await request('/api/integration/keypair',{})).data.partnerPublicKey.includes('BEGIN PUBLIC KEY'),true);
+ const integration=await request('/api/integration');assert.equal(integration.data.hasPartnerPrivateKey,true);assert.equal(integration.data.partnerPrivateKey,undefined);
+ assert.equal((await request('/api/integration',{enabled:true,partner:'mdt-d-bank',callbackUrl:''},'PUT')).status,400);
  const config={token:'',chatId:'123',dailyLimit:300000,callbackUrl:''};
  assert.equal((await request('/api/settings',config,'PUT')).status,200);
  let parsed=await request('/api/qr',{raw:qr()});assert.equal(parsed.status,200);

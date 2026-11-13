@@ -92,6 +92,7 @@ curl https://dbank.antblog.xyz/api/session
 
 API session chưa đăng nhập phải trả `authenticated: false`. Thử đăng nhập bằng OTP, xem lịch sử và mở camera trên điện thoại qua HTTPS. OTP thật/camera cần kiểm tra trên thiết bị và Telegram thật; test tự động dùng Telegram mô phỏng.
 
+- 421 trên điện thoại hoặc khi chuyển từ blog sang ngân hàng: bảo đảm server HTTPS của dbank có `http2 on;` giống các host antblog. Khi trình duyệt dùng lại kết nối HTTP/2 của blog cho dbank, cấu hình thiếu HTTP/2 có thể trả 421 dù HTTP/1.1 vẫn trả 200. Sửa template trong repo antblog, build lại image và tạo lại container Nginx; chỉ reload không cập nhật template đã COPY trong image.
 - 502: kiểm tra health/log ngân hàng và hai container cùng mạng `ANTBLOG_NETWORK`.
 - 526: kiểm tra chứng chỉ origin đã chứa `dbank.antblog.xyz` và Nginx đã nạp chứng chỉ mới.
 - 403 khi đăng nhập: kiểm tra Host, X-Forwarded-Proto và cấu hình TRUST_PROXY.

@@ -32,7 +32,7 @@ Truy cập http://localhost:3000, nhập tên tài khoản **meddental**, nhận
 - Xác nhận bằng một nút, lấy đúng số tiền đã đọc từ QR ở phía máy chủ. Giao dịch thành công lưu SQLite. Xác nhận lại cùng mã không tạo giao dịch trùng. Thông tin xác nhận hết hạn sau 10 phút.
 - Hạn mức mặc định 0 = không giới hạn. Số âm quy về 0; số dương giới hạn tổng tiền chuyển trong ngày theo múi giờ Asia/Ho_Chi_Minh. Kiểm tra và ghi giao dịch trong transaction SQLite.
 - Cài đặt token bot Telegram, chat ID, hạn mức ngày, URL callback. Token đã lưu không trả về trình duyệt; để trống giữ nguyên token.
-- Callback hiện **chỉ lưu URL**, chưa gửi request. Chờ đặc tả payload, xác thực, thời điểm gọi và retry.
+- Callback MedDental Payment: TripleDES-CBC + RSA-SHA256, xác minh phản hồi, hàng đợi SQLite và tự gửi lại tối đa 24 giờ. Cấu hình trong Cài đặt → Tích hợp MedDental Payment; xem [hướng dẫn cấu hình](deploy/INTEGRATION.md).
 
 ## Responsive và camera
 
@@ -52,7 +52,7 @@ npx playwright install chromium
 npm run check:ui
 ```
 
-Test API dùng SQLite trong RAM và mô phỏng Telegram, không gửi tin nhắn thật. Kiểm tra OTP, xác thực, QR/checksum, hạn mức, ghi trùng, phân trang, LIKE và đăng xuất. Test trình duyệt kiểm tra luồng đăng nhập → QR → chuyển tiền → cài đặt và độ rộng 360, 390, 768, 1024, 1440px. Ảnh kiểm tra lưu ở `artifacts/`. Camera thiết bị và gửi OTP thật cần kiểm tra thêm với bot Telegram của bạn.
+Test API dùng SQLite trong RAM và mô phỏng Telegram, không gửi tin nhắn thật. Kiểm tra OTP, xác thực, QR/checksum, hạn mức, ghi trùng, phân trang, LIKE và đăng xuất; đối chiếu mẫu TripleDES trong tài liệu, chữ ký RSA, phản hồi sai/chống ghép nhầm, retry, hàng đợi và rollback nguyên tử. Test trình duyệt kiểm tra luồng đăng nhập → QR → chuyển tiền → cài đặt → tạo khóa/cấu hình tích hợp → callback được xác nhận và độ rộng 360, 390, 768, 1024, 1440px. Ảnh kiểm tra lưu ở `artifacts/`. Camera thiết bị và gửi OTP thật cần kiểm tra thêm với bot Telegram của bạn.
 
 ## Chạy bằng Docker Compose
 

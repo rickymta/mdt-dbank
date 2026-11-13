@@ -10,3 +10,5 @@ scripts
 .gitignore
 *.log
 README.md
+*.pem
+**/*.pem
