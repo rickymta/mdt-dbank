@@ -14,13 +14,23 @@ let otp;const fetchOriginal=globalThis.fetch;globalThis.fetch=async(url,options)
  return new Response(JSON.stringify({data,partner:request.partner,responseTime,sign:protocol.sign(protocol.signatureText(data,request.partner,responseTime),paymentKeys.privateKey)}));
 }return fetchOriginal(url,options);};
 const {server}=await import('../server.js');const {db}=await import('../db.js');const {crc16}=await import('../public/qr.js');if(!server.listening)await once(server,'listening');
-const browser=await chromium.launch();const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+const browser=await chromium.launch({args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
 async function fit(label){assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,label+' horizontal overflow');}
 try{
  await page.setViewportSize({width:390,height:844});await page.goto(`http://localhost:${server.address().port}`);await page.getByRole('button',{name:/Nhận mã OTP/}).waitFor();await fit('mobile login');
  await page.getByRole('button',{name:/Nhận mã OTP/}).click();await page.getByLabel('Mã xác thực OTP').fill(otp);await page.getByRole('button',{name:'Xác thực & đăng nhập'}).click();await page.getByRole('heading',{name:'Lịch sử giao dịch'}).waitFor();
  await fit('mobile transactions');await page.screenshot({path:'artifacts/mobile-transactions.png',fullPage:true});
- await page.locator('nav').getByRole('button',{name:'Quét QR'}).click();await page.getByText('Nhập chuỗi QR thủ công').click();
+ await page.locator('nav').getByRole('button',{name:'Quét QR'}).click();for (const [width,height] of [[320,568],[360,640],[390,844]]) {
+   await page.setViewportSize({width,height});
+   await fit('QR '+width);
+   await page.locator('#camera').click();
+   await page.waitForFunction(()=>document.querySelector('#reader video')?.currentTime>0.2);
+   assert.ok(await page.locator('.qr-panel').evaluate(panel=>panel.getBoundingClientRect().bottom<=document.querySelector('aside').getBoundingClientRect().top),'Active camera fits at '+width);
+   await page.locator('nav [data-view=qr]').click();
+   await page.waitForFunction(()=>!document.querySelector('#scan-placeholder').hidden);
+   assert.ok(await page.locator('.qr-panel').evaluate(panel=>panel.getBoundingClientRect().bottom<=document.querySelector('aside').getBoundingClientRect().top),'Scanner fits above navigation at '+width);
+ }
+ await page.getByText('Nhập chuỗi QR thủ công').click();
  const f=(id,s)=>id+String(s.length).padStart(2,'0')+s;let raw=f('00','01')+f('38',f('00','A000000727')+f('01',f('00','970436')+f('01','123456789'))+f('02','QRIBFTTA'))+f('53','704')+f('54','150000')+f('58','VN')+f('62',f('08','MEDDENTAL TEST'))+'6304';raw+=crc16(raw);
  await page.locator('#raw').fill(raw);await page.getByRole('button',{name:'Đọc mã QR'}).click();await page.getByRole('button',{name:'Xác nhận chuyển tiền'}).waitFor();await fit('mobile confirmation');await page.getByRole('button',{name:'Xác nhận chuyển tiền'}).click();await page.getByRole('heading',{name:'Chuyển tiền thành công'}).waitFor();
  await page.getByRole('button',{name:'Xem lịch sử giao dịch'}).click();await page.getByText('MEDDENTAL TEST',{exact:true}).waitFor();await fit('mobile transaction card');await page.screenshot({path:'artifacts/mobile-transactions.png',fullPage:true});
