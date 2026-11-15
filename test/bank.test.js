@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {once} from 'node:events';
 process.env.DB_PATH=':memory:';process.env.PORT='0';process.env.TELEGRAM_BOT_TOKEN='123:test';process.env.TELEGRAM_CHAT_ID='123';
 const nativeFetch=globalThis.fetch;let otp;
-globalThis.fetch=async(url,options)=>{if(String(url).startsWith('https://api.telegram.org/')){otp=JSON.parse(options.body).text.match(/\b\d{6}\b/)[0];return new Response(JSON.stringify({ok:true}));}return nativeFetch(url,options);};
+globalThis.fetch=async(url,options)=>{if(String(url).startsWith('https://api.telegram.org/')){const message=JSON.parse(options.body);assert.equal(message.parse_mode,'Markdown');otp=message.text.match(/`(\d{6})`/)[1];return new Response(JSON.stringify({ok:true}));}return nativeFetch(url,options);};
 const {server}=await import('../server.js');const {db,dayKey,limitValue}=await import('../db.js');const {crc16,parseQR}=await import('../public/qr.js');
 if(!server.listening)await once(server,'listening');const base=`http://localhost:${server.address().port}`;let cookie='';
 async function request(path,body,method='POST'){const response=await nativeFetch(base+path,{method:body===undefined?'GET':method,headers:{'Content-Type':'application/json',cookie},body:body===undefined?undefined:JSON.stringify(body)});const set=response.headers.get('set-cookie');if(set)cookie=set.split(';')[0];return {status:response.status,data:await response.json()};}

@@ -24,7 +24,7 @@ app.post('/api/login',loginLimit,async(req,res)=>{
  if(req.session.sentAt&&Date.now()-req.session.sentAt<60000)return res.status(429).json({error:'Vui lòng đợi 60 giây trước khi gửi lại OTP.'});
  const otp=String(randomInt(100000,1000000)); const cfg=settings();
  req.session.otp=null;
- try { const response=await fetch(`https://api.telegram.org/bot${cfg.token||process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:cfg.chat_id||process.env.TELEGRAM_CHAT_ID,text:`Ngân hàng số MEDDENTAL (giả lập)\nMã OTP đăng nhập: ${otp}\nCó hiệu lực trong 5 phút.`}),signal:AbortSignal.timeout(10000)});const result=await response.json();if(!response.ok||!result.ok)throw new Error();req.session.otp=digest(otp).toString('hex');req.session.expiry=Date.now()+300000;req.session.attempts=0;req.session.sentAt=Date.now();res.json({ok:true}); }
+ try { const response=await fetch(`https://api.telegram.org/bot${cfg.token||process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:cfg.chat_id||process.env.TELEGRAM_CHAT_ID,parse_mode:'Markdown',text:`Ngân hàng số MEDDENTAL (giả lập)\nMã OTP đăng nhập: \`${otp}\`\nCó hiệu lực trong 5 phút.`}),signal:AbortSignal.timeout(10000)});const result=await response.json();if(!response.ok||!result.ok)throw new Error();req.session.otp=digest(otp).toString('hex');req.session.expiry=Date.now()+300000;req.session.attempts=0;req.session.sentAt=Date.now();res.json({ok:true}); }
  catch {res.status(502).json({error:'Không gửi được OTP. Kiểm tra token, chat ID và kết nối Telegram.'});}
 });
 app.post('/api/verify',loginLimit,(req,res)=>{
